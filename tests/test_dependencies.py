@@ -67,3 +67,11 @@ async def test_get_current_user_http_no_creds(session):
     with pytest.raises(HTTPException) as exc_info:
         await get_current_user_http(credentials=None, db=session)
     assert exc_info.value.status_code == 401
+
+
+async def test_get_current_user_non_string_sub(session):
+    from app.services.auth import create_access_token
+    token = create_access_token({"sub": 12345})
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(token=token, db=session)
+    assert exc_info.value.status_code == 401

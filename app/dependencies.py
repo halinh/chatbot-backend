@@ -28,7 +28,7 @@ async def _resolve_user(token: str, db: AsyncSession) -> User:
     try:
         payload = decode_token(token)
         user_id_str: str | None = payload.get("sub")
-        if user_id_str is None:
+        if not isinstance(user_id_str, str):
             raise credentials_exception
         user_id = uuid.UUID(user_id_str)
     except (JWTError, ValueError):
