@@ -2,7 +2,7 @@ import uuid
 import pytest
 from app.models.user import User
 from app.models.message import Message
-from app.services.auth import hash_password, create_access_token
+from app.services.auth import hash_password
 from sqlalchemy import select
 
 
@@ -10,7 +10,7 @@ from sqlalchemy import select
 async def auth_token(client):
     resp = await client.post(
         "/auth/register",
-        json={"email": "chat_rest@example.com", "password": "pass123"},
+        json={"email": "chat_rest@example.com", "password": "pass12345"},
     )
     return resp.json()["access_token"]
 
@@ -26,7 +26,7 @@ async def test_list_sessions_empty(client, auth_token):
 
 async def test_list_sessions_requires_auth(client):
     response = await client.get("/chat/sessions")
-    assert response.status_code in (401, 403, 422)
+    assert response.status_code == 401
 
 
 async def test_get_session_messages_returns_messages(client, auth_token, db_session):
@@ -64,7 +64,7 @@ async def test_get_session_messages_wrong_user(client, db_session):
 
     resp = await client.post(
         "/auth/register",
-        json={"email": "intruder@example.com", "password": "pass"},
+        json={"email": "intruder@example.com", "password": "intruderpass"},
     )
     token = resp.json()["access_token"]
 
@@ -72,4 +72,5 @@ async def test_get_session_messages_wrong_user(client, db_session):
         f"/chat/sessions/{session_id}/messages",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert response.json() == []

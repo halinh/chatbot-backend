@@ -43,7 +43,7 @@ async def ws_token(ws_app):
     ) as ac:
         resp = await ac.post(
             "/auth/register",
-            json={"email": "ws_user@example.com", "password": "wspass"},
+            json={"email": "ws_user@example.com", "password": "wspassword"},
         )
     return resp.json()["access_token"]
 

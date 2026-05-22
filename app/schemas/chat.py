@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatInput(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=32_000)
     model: str = "llama3.2"
 
 

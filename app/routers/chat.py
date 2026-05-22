@@ -1,16 +1,15 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
-from jose import JWTError
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user_http, get_db
+from app.dependencies import _resolve_user, get_current_user_http, get_db
 from app.models.message import Message
 from app.models.user import User
 from app.schemas.chat import ChatInput, MessageOut, SessionOut, WSChunk, WSDone, WSError
-from app.services.auth import decode_token
 from app.services.ollama import stream_chat
+from sqlalchemy import func
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 ws_router = APIRouter(tags=["chat"])
@@ -50,15 +49,10 @@ async def get_session_messages(
 ):
     result = await db.execute(
         select(Message)
-        .where(Message.session_id == session_id)
+        .where(Message.session_id == session_id, Message.user_id == current_user.id)
         .order_by(Message.created_at.asc())
     )
-    messages = result.scalars().all()
-    if not messages:
-        return []
-    if messages[0].user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return messages
+    return [MessageOut.model_validate(m) for m in result.scalars().all()]
 
 
 @ws_router.websocket("/ws/chat")
@@ -76,22 +70,27 @@ async def websocket_chat(
         return
 
     try:
-        payload = decode_token(token)
-        user_id = uuid.UUID(payload["sub"])
-    except (JWTError, KeyError, ValueError):
+        user = await _resolve_user(token, db)
+    except HTTPException:
         await websocket.send_text(WSError(message="Invalid token").model_dump_json())
-        await websocket.close(code=1008)
-        return
-
-    db_result = await db.execute(select(User).where(User.id == user_id))
-    user = db_result.scalar_one_or_none()
-    if user is None:
-        await websocket.send_text(WSError(message="User not found").model_dump_json())
         await websocket.close(code=1008)
         return
 
     try:
         resolved_session_id = uuid.UUID(session_id) if session_id else uuid.uuid4()
+
+        # Validate session ownership before loading history
+        if session_id:
+            ownership_check = await db.execute(
+                select(Message.user_id)
+                .where(Message.session_id == resolved_session_id)
+                .limit(1)
+            )
+            owner = ownership_check.scalar_one_or_none()
+            if owner is not None and owner != user.id:
+                await websocket.send_text(WSError(message="Access denied").model_dump_json())
+                await websocket.close(code=1008)
+                return
 
         while True:
             raw = await websocket.receive_text()
@@ -122,6 +121,10 @@ async def websocket_chat(
             async for token_text in stream_chat(history, model=chat_input.model):
                 full_response += token_text
                 await websocket.send_text(WSChunk(content=token_text).model_dump_json())
+
+            if not full_response:
+                await websocket.send_text(WSError(message="Empty response from model").model_dump_json())
+                continue
 
             assistant_msg = Message(
                 session_id=resolved_session_id,

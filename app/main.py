@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.database import engine
 from app.routers import auth as auth_router
 from app.routers import chat as chat_router
 
@@ -11,6 +12,7 @@ from app.routers import chat as chat_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+    await engine.dispose()
 
 
 app = FastAPI(title="Chatbot Backend", lifespan=lifespan)

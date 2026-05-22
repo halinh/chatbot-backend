@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,13 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
 
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def secret_key_must_not_be_default(cls, v: str) -> str:
+        if v == "change-me-in-production":
+            raise ValueError("SECRET_KEY must be changed from the default value in .env")
+        return v
 
 
 settings = Settings()

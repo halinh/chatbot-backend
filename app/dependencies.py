@@ -16,7 +16,11 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 async def get_db() -> AsyncIterator[AsyncSession]:
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def _resolve_user(token: str, db: AsyncSession) -> User:

@@ -13,11 +13,11 @@ async def test_register_success(client):
 async def test_register_duplicate_email(client):
     await client.post(
         "/auth/register",
-        json={"email": "dup@example.com", "password": "pass123"},
+        json={"email": "dup@example.com", "password": "pass12345"},
     )
     response = await client.post(
         "/auth/register",
-        json={"email": "dup@example.com", "password": "pass456"},
+        json={"email": "dup@example.com", "password": "pass45678"},
     )
     assert response.status_code == 409
 
