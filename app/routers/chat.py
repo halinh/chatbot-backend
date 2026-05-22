@@ -90,9 +90,9 @@ async def websocket_chat(
         await websocket.close(code=1008)
         return
 
-    resolved_session_id = uuid.UUID(session_id) if session_id else uuid.uuid4()
-
     try:
+        resolved_session_id = uuid.UUID(session_id) if session_id else uuid.uuid4()
+
         while True:
             raw = await websocket.receive_text()
             chat_input = ChatInput.model_validate_json(raw)
@@ -142,8 +142,8 @@ async def websocket_chat(
 
     except WebSocketDisconnect:
         pass
-    except Exception as exc:
+    except Exception:
         try:
-            await websocket.send_text(WSError(message=str(exc)).model_dump_json())
+            await websocket.send_text(WSError(message="Internal server error").model_dump_json())
         except RuntimeError:
             pass

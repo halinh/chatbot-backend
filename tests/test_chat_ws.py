@@ -111,7 +111,7 @@ async def test_ws_streams_and_persists(ws_app, ws_token, ws_engine):
     assert msgs[1].role == "assistant" and msgs[1].content == "Hi there"
 
 
-async def test_ws_uses_existing_session_id(ws_app, ws_token):
+async def test_ws_uses_existing_session_id(ws_app, ws_token, ws_engine):
     session_id = str(uuid.uuid4())
 
     async def fake_stream(messages, model=None):
@@ -129,3 +129,16 @@ async def test_ws_uses_existing_session_id(ws_app, ws_token):
                         msg = json.loads(ws.receive_text())
                         if msg["type"] in ("done", "error"):
                             break
+
+    from sqlalchemy import select
+    from app.models.message import Message
+
+    factory = async_sessionmaker(ws_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as db:
+        result = await db.execute(
+            select(Message).where(Message.session_id == uuid.UUID(session_id))
+        )
+        msgs = result.scalars().all()
+
+    # 2 turns × (user + assistant) = 4 messages, all in the same session
+    assert len(msgs) == 4
